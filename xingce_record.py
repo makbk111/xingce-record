@@ -1,4 +1,24 @@
 import streamlit as st
+
+# ========== 访问密码，在这里修改成你自己的密码 ==========
+APP_PASSWORD = "020804"
+# ======================================================
+
+if "is_login" not in st.session_state:
+    st.session_state.is_login = False
+
+if not st.session_state.is_login:
+    st.title("🔐 访问验证")
+    input_pwd = st.text_input("请输入访问密码", type="password")
+    if st.button("确认登录"):
+        if input_pwd == APP_PASSWORD:
+            st.session_state.is_login = True
+            st.rerun()
+        else:
+            st.error("❌ 密码错误，请重新输入")
+    st.stop()
+
+import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
