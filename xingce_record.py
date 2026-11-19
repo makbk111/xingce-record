@@ -435,27 +435,20 @@ with tab_error:
 
     with err_tab1:
         st.markdown("##### 添加错题")
-        # 联动缓存初始化
+        # 初始化
         if "err_main_sel" not in st.session_state:
             st.session_state.err_main_sel = main_module_list[0]
-        if "err_sub_sel" not in st.session_state:
-            st.session_state.err_sub_sel = module_sub_map[st.session_state.err_main_sel][0]
 
-        def clear_sub():
-            st.session_state.err_sub_sel = module_sub_map[st.session_state.err_main_sel][0]
+        # 主模块放在form外面，去掉on_change
+        main_mod = st.selectbox("主模块", main_module_list, key="err_main_sel")
+        # 根据选中的主模块动态拿到子模块列表
+        sub_options = module_sub_map[main_mod]
+        # 如果当前缓存的子模块不在新列表里，重置为第一个
+        if "err_sub_sel" not in st.session_state or st.session_state.err_sub_sel not in sub_options:
+            st.session_state.err_sub_sel = sub_options[0]
 
         with st.form("error_form", clear_on_submit=True):
-            main_mod = st.selectbox(
-                "主模块",
-                main_module_list,
-                key="err_main_sel",
-                on_change=clear_sub
-            )
-            sub_mod = st.selectbox(
-                "细分小模块",
-                module_sub_map[main_mod],
-                key="err_sub_sel"
-            )
+            sub_mod = st.selectbox("细分小模块", sub_options, key="err_sub_sel")
             err_point = st.text_input("考点（补充细化考点）")
             question_text = st.text_area("题干")
             option_text = st.text_area("选项")
