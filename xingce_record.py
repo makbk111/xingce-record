@@ -1,8 +1,8 @@
 import streamlit as st
 
-# ========== 访问密码，在这里修改成你自己的密码 ==========
+# ========== 访问密码 ==========
 APP_PASSWORD = "020804"
-# ======================================================
+# ======================================
 
 if "is_login" not in st.session_state:
     st.session_state.is_login = False
@@ -18,7 +18,6 @@ if not st.session_state.is_login:
             st.error("❌ 密码错误，请重新输入")
     st.stop()
 
-import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
@@ -436,9 +435,27 @@ with tab_error:
 
     with err_tab1:
         st.markdown("##### 添加错题")
+        # 联动缓存初始化
+        if "err_main_sel" not in st.session_state:
+            st.session_state.err_main_sel = main_module_list[0]
+        if "err_sub_sel" not in st.session_state:
+            st.session_state.err_sub_sel = module_sub_map[st.session_state.err_main_sel][0]
+
+        def clear_sub():
+            st.session_state.err_sub_sel = module_sub_map[st.session_state.err_main_sel][0]
+
         with st.form("error_form", clear_on_submit=True):
-            main_mod = st.selectbox("主模块", main_module_list)
-            sub_mod = st.selectbox("细分小模块", module_sub_map[main_mod])
+            main_mod = st.selectbox(
+                "主模块",
+                main_module_list,
+                key="err_main_sel",
+                on_change=clear_sub
+            )
+            sub_mod = st.selectbox(
+                "细分小模块",
+                module_sub_map[main_mod],
+                key="err_sub_sel"
+            )
             err_point = st.text_input("考点（补充细化考点）")
             question_text = st.text_area("题干")
             option_text = st.text_area("选项")
