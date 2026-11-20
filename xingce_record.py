@@ -183,13 +183,31 @@ def get_header():
 
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+import io
+import pandas as pd
+
 pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
 FONT_NAME = 'STSong-Light'
 
 def clean_nan(s):
     if pd.isna(s) or str(s).strip().lower() == "nan":
         return ""
-    return str(s)
+    return str(s).strip()
+
+def build_info_line(main_mod, sub_mod, point, err_reason):
+    parts = []
+    if main_mod:
+        parts.append(f"<b>主模块</b>：{main_mod}")
+    if sub_mod:
+        parts.append(f"<b>子模块</b>：{sub_mod}")
+    if point:
+        parts.append(f"<b>考点</b>：{point}")
+    if err_reason:
+        parts.append(f"<b>错因</b>：{err_reason}")
+    return "｜".join(parts)
 
 # PDF自测版（无答案）
 def generate_pdf_test(df_export):
@@ -212,15 +230,15 @@ def generate_pdf_test(df_export):
         q_text = clean_nan(row['题干'])
         opt_text = clean_nan(row['选项'])
 
-        info_line = f"<b>主模块</b>：{main_mod}｜<b>子模块</b>：{sub_mod}｜<b>考点</b>：{point}｜<b>错因</b>：{err_reason}"
-        story.append(Paragraph(info_line, normal_style))
-        story.append(Spacer(1, 3*mm))
+        info_line = build_info_line(main_mod, sub_mod, point, err_reason)
+        if info_line:
+            story.append(Paragraph(info_line, normal_style))
+            story.append(Spacer(1, 3*mm))
 
         content = f"<b>【第{idx}题】</b><br/>{q_text}"
         story.append(Paragraph(content, normal_style))
         story.append(Spacer(1, 3*mm))
 
-        # 匹配中文句号 A． B． C． D．自动换行
         opt_text_br = opt_text
         opt_text_br = opt_text_br.replace("A．", "<br/>A．")
         opt_text_br = opt_text_br.replace("B．", "<br/>B．")
@@ -258,9 +276,10 @@ def generate_pdf_answer(df_export):
         ans_m = clean_nan(row['你的答案'])
         note = clean_nan(row['解析'])
 
-        info_line = f"<b>主模块</b>：{main_mod}｜<b>子模块</b>：{sub_mod}｜<b>考点</b>：{point}｜<b>错因</b>：{err_reason}"
-        story.append(Paragraph(info_line, normal_style))
-        story.append(Spacer(1, 3*mm))
+        info_line = build_info_line(main_mod, sub_mod, point, err_reason)
+        if info_line:
+            story.append(Paragraph(info_line, normal_style))
+            story.append(Spacer(1, 3*mm))
 
         content = f"<b>【第{idx}题】</b><br/>{q_text}"
         story.append(Paragraph(content, normal_style))
@@ -273,7 +292,14 @@ def generate_pdf_answer(df_export):
         opt_text_br = opt_text_br.replace("D．", "<br/>D．")
         story.append(Paragraph(opt_text_br, normal_style))
 
-        ans_line = f"<br/>✅正确答案：{ans_r} ｜ ❌你的答案：{ans_m}<br/><b>解析</b>：{note}"
+        ans_parts = []
+        if ans_r:
+            ans_parts.append(f"✅正确答案：{ans_r}")
+        if ans_m:
+            ans_parts.append(f"❌你的答案：{ans_m}")
+        if note:
+            ans_parts.append(f"<b>解析</b>：{note}")
+        ans_line = "<br/>" + "｜".join(ans_parts)
         story.append(Paragraph(ans_line, normal_style))
 
         story.append(Spacer(1, 8*mm))
@@ -281,7 +307,6 @@ def generate_pdf_answer(df_export):
     doc.build(story)
     buffer.seek(0)
     return buffer
-
 
 
 # 加载数据
