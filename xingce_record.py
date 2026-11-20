@@ -20,6 +20,8 @@ if not st.session_state.is_login:
 
 import pandas as pd
 import matplotlib.pyplot as plt
+plt.rcParams['font.sans-serif'] = ['WenQuanYi Zen Hei']
+plt.rcParams['axes.unicode_minus'] = False
 from datetime import datetime, timedelta
 import base64
 import io
@@ -242,10 +244,9 @@ with st.sidebar.expander("🎨 全局字体设置"):
 
 st.title("📝 行测刷题记录 + 艾宾浩斯错题本")
 
-# tab列表：录入记录,历史记录,趋势绘图,错题本
-tab_input, tab_history, tab_chart, tab_error = st.tabs([
-    "录入记录", "历史记录", "趋势绘图", "错题本"
-])
+# tab列表：试卷录入, 历史记录, 统计图表, 错题本, 导出PDF, 数据管理
+tab_input, tab_history, tab_chart, tab_error, tab_export, tab_manage = st.tabs(["试卷录入", "历史记录", "统计图表", "错题本", "导出PDF", "数据管理"])
+
 
 # 切换试卷类型回调
 def on_paper_change():
@@ -670,4 +671,30 @@ with tab_error:
                     df_edit_all = df_edit_all.drop(select_idx).reset_index(drop=True)
                     save_csv_to_github(df_edit_all, ERROR_CSV_PATH, edit_sha)
                     st.warning("✅ 错题已删除！")
+                    st.rerun()
+
+# ============ 新增：数据管理 Tab ============
+with tab_manage:
+    st.subheader("📂 刷题记录管理")
+    df, file_sha = load_csv_from_github(CSV_PATH)
+    if len(df) == 0:
+        st.info("暂无刷题记录")
+    else:
+        st.dataframe(df, use_container_width=True)
+        paper_list = df["试卷名称"].unique().tolist()
+        del_paper = st.selectbox("选择要删除的试卷", paper_list)
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("删除该试卷全部记录", type="secondary"):
+                df_new = df[df["试卷名称"] != del_paper]
+                save_csv_to_github(df_new, CSV_PATH, file_sha)
+                st.success(f"✅ 已删除【{del_paper}】所有记录！刷新页面生效")
+                st.rerun()
+        with col2:
+            if st.button("⚠️ 清空全部记录", type="primary"):
+                confirm = st.checkbox("确认清空所有刷题数据，操作不可恢复！")
+                if confirm:
+                    df_empty = pd.DataFrame(columns=get_header())
+                    save_csv_to_github(df_empty, CSV_PATH, file_sha)
+                    st.success("✅ 全部数据已清空！")
                     st.rerun()
