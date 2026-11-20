@@ -187,7 +187,12 @@ from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
 FONT_NAME = 'STSong-Light'
 
-# PDF生成函数【修复中文黑块】
+def clean_nan(s):
+    if pd.isna(s) or str(s).strip().lower() == "nan":
+        return ""
+    return str(s)
+
+# PDF自测版（无答案）
 def generate_pdf_test(df_export):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4,
@@ -199,21 +204,36 @@ def generate_pdf_test(df_export):
     story = []
     story.append(Paragraph("行测错题本【自测版】", title_style))
     story.append(Spacer(1, 10*mm))
-    for _, row in df_export.iterrows():
-        text = f"""
-<b>主模块</b>：{row['主模块']}｜<b>子模块</b>：{row['子模块']}｜<b>考点</b>：{row['考点']}｜<b>错因</b>：{row['错因']}<br/>
-<b>题干</b>：{row['题干']}<br/>
-<b>选项</b>：{row['选项']}<br/>
-——————————
-<br/>
-"""
-        p = Paragraph(text, normal_style)
-        story.append(p)
-        story.append(Spacer(1, 6*mm))
+
+    for idx, (_, row) in enumerate(df_export.iterrows(), start=1):
+        main_mod = clean_nan(row['主模块'])
+        sub_mod = clean_nan(row['子模块'])
+        point = clean_nan(row['考点'])
+        err_reason = clean_nan(row['错因'])
+        q_text = clean_nan(row['题干'])
+        opt_text = clean_nan(row['选项'])
+
+        # 题型信息行
+        info_line = f"<b>主模块</b>：{main_mod}｜<b>子模块</b>：{sub_mod}｜<b>考点</b>：{point}｜<b>错因</b>：{err_reason}"
+        story.append(Paragraph(info_line, normal_style))
+        story.append(Spacer(1, 3*mm)) # 题型信息 和 题号之间空半行
+
+        # 题号 + 题干
+        content = f"<b>【第{idx}题】</b><br/>{q_text}"
+        story.append(Paragraph(content, normal_style))
+        story.append(Spacer(1, 3*mm)) # 题干与选项中间空半行
+
+        # 选项分行，把A、B、C、D前面强制换行
+        opt_text_br = opt_text.replace("A.", "<br/>A.").replace("B.", "<br/>B.").replace("C.", "<br/>C.").replace("D.", "<br/>D.")
+        story.append(Paragraph(opt_text_br, normal_style))
+
+        story.append(Spacer(1, 8*mm)) # 题目和下一题的间距
+
     doc.build(story)
     buffer.seek(0)
     return buffer
 
+# PDF解析版（带答案、复盘）
 def generate_pdf_answer(df_export):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4,
@@ -225,19 +245,38 @@ def generate_pdf_answer(df_export):
     story = []
     story.append(Paragraph("行测错题本【解析版】", title_style))
     story.append(Spacer(1, 10*mm))
-    for _, row in df_export.iterrows():
-        text = f"""
-<b>主模块</b>：{row['主模块']}｜<b>子模块</b>：{row['子模块']}｜<b>考点</b>：{row['考点']}｜<b>错因</b>：{row['错因']}<br/>
-<b>题干</b>：{row['题干']}<br/>
-<b>选项</b>：{row['选项']}<br/>
-✅正确答案：{row['正确答案']} ｜ ❌你的答案：{row['你的答案']}<br/>
-<b>复盘笔记</b>：{row['解析']}
-"""
-        p = Paragraph(text, normal_style)
-        story.append(p)
-        story.append(Spacer(1, 6*mm))
-        story.append(Paragraph("-"*60, normal_style))
-        story.append(Spacer(1, 4*mm))
+
+    for idx, (_, row) in enumerate(df_export.iterrows(), start=1):
+        main_mod = clean_nan(row['主模块'])
+        sub_mod = clean_nan(row['子模块'])
+        point = clean_nan(row['考点'])
+        err_reason = clean_nan(row['错因'])
+        q_text = clean_nan(row['题干'])
+        opt_text = clean_nan(row['选项'])
+        ans_r = clean_nan(row['正确答案'])
+        ans_m = clean_nan(row['你的答案'])
+        note = clean_nan(row['复盘笔记'])
+
+        # 题型信息行
+        info_line = f"<b>主模块</b>：{main_mod}｜<b>子模块</b>：{sub_mod}｜<b>考点</b>：{point}｜<b>错因</b>：{err_reason}"
+        story.append(Paragraph(info_line, normal_style))
+        story.append(Spacer(1, 3*mm))
+
+        # 题号+题干
+        content = f"<b>【第{idx}题】</b><br/>{q_text}"
+        story.append(Paragraph(content, normal_style))
+        story.append(Spacer(1, 3*mm))
+
+        # 选项分行
+        opt_text_br = opt_text.replace("A.", "<br/>A.").replace("B.", "<br/>B.").replace("C.", "<br/>C.").replace("D.", "<br/>D.")
+        story.append(Paragraph(opt_text_br, normal_style))
+
+        # 答案和复盘
+        ans_line = f"<br/>✅正确答案：{ans_r} ｜ ❌你的答案：{ans_m}<br/><b>复盘笔记</b>：{note}"
+        story.append(Paragraph(ans_line, normal_style))
+
+        story.append(Spacer(1, 8*mm))
+
     doc.build(story)
     buffer.seek(0)
     return buffer
