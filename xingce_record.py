@@ -586,7 +586,14 @@ with tab_error:
         else:
             select_idx = st.selectbox("选择错题序号", options=list(range(len(df_edit_all))))
             edit_row = df_edit_all.iloc[select_idx].copy()
-            st.markdown(f"选中：【{edit_row['主模块']}｜{edit_row['子模块']}】{edit_row['考点']}")
+            main_mod = clean_nan(edit_row["主模块"])
+            sub_mod = clean_nan(edit_row["子模块"])
+            point = clean_nan(edit_row["考点"])
+            select_parts = [f"【{main_mod}｜{sub_mod}】"]
+            if point:
+                select_parts.append(point)
+            st.markdown("选中：" + " ".join(select_parts))
+
 
             with st.form("edit_err_form", clear_on_submit=False):
                 edit_main = st.selectbox("主模块", main_module_list, index=main_module_list.index(edit_row["主模块"]))
