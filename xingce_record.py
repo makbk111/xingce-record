@@ -1,23 +1,4 @@
 import streamlit as st
-
-# ========== 访问密码 ==========
-APP_PASSWORD = "020804"
-# ======================================
-
-if "is_login" not in st.session_state:
-    st.session_state.is_login = False
-
-if not st.session_state.is_login:
-    st.title("🔐 访问验证")
-    input_pwd = st.text_input("请输入访问密码", type="password")
-    if st.button("确认登录"):
-        if input_pwd == APP_PASSWORD:
-            st.session_state.is_login = True
-            st.rerun()
-        else:
-            st.error("❌ 密码错误，请重新输入")
-    st.stop()
-
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.font_manager import FontProperties
@@ -34,29 +15,19 @@ from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-# ===================== 字体注册（思源黑体，放在仓库根目录） =====================
+# ===================== 字体配置 =====================
 FONT_FILE_NAME = "NotoSansSC-Regular.ttf"
 pdfmetrics.registerFont(TTFont("NotoSansSC", FONT_FILE_NAME))
 FONT_NAME = "NotoSansSC"
 
-# ===================== 配置区 =====================
+# ===================== 配置区（Secrets读取） =====================
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
 GITHUB_REPO = st.secrets.get("GITHUB_REPO")
 GITHUB_BRANCH = st.secrets.get("GITHUB_BRANCH", "main")
 CSV_PATH = st.secrets.get("CSV_PATH", "行测刷题记录.csv")
 ERROR_CSV_PATH = "行测错题本.csv"
 TAG_CSV_PATH = "标签配置.csv"
-
-# 【新增字体配置】
-FONT_LIST = [
-    "系统默认",
-    "Microsoft YaHei",
-    "SimSun",
-    "SimHei",
-    "KaiTi",
-    "Arial",
-    "Times New Roman"
-]
+USER_CSV_PATH = "user_list.csv"
 
 # 艾宾浩斯复习间隔
 review_interval = [1, 2, 4, 7, 15, 30]
@@ -105,7 +76,6 @@ sub_module_list = [
 ]
 TARGET_SCORE = 70
 
-# 错题模块：大模块-子模块映射
 module_sub_map = {
     "常识判断": ["时政", "法律", "文史", "科技", "地理", "经济", "其他常识"],
     "言语理解": ["逻辑填空", "片段阅读", "语句表达", "篇章阅读"],
@@ -114,6 +84,16 @@ module_sub_map = {
     "资料分析": ["增长", "比重", "平均数", "倍数", "比较大小", "综合分析"]
 }
 main_module_list = list(module_sub_map.keys())
+
+FONT_LIST = [
+    "系统默认",
+    "Microsoft YaHei",
+    "SimSun",
+    "SimHei",
+    "KaiTi",
+    "Arial",
+    "Times New Roman"
+]
 
 # ---------------- GitHub读写函数 ----------------
 @st.cache_resource
@@ -128,19 +108,17 @@ def load_csv_from_github(file_path):
         contents = repo.get_contents(file_path, ref=GITHUB_BRANCH)
         data = base64.b64decode(contents.content)
         df = pd.read_csv(io.BytesIO(data), encoding="utf-8-sig")
-        # ========= ✅ 错题本表强制文本列转为字符串，解决LossySetitemError =========
         if file_path == ERROR_CSV_PATH:
-            text_cols = ["考点", "错因", "题干", "选项", "正确答案", "你的答案", "解析", "主模块", "子模块"]
+            text_cols = ["考点", "错因", "题干", "选项", "正确答案", "你的答案", "解析", "主模块", "子模块", "username"]
             for c in text_cols:
                 if c in df.columns:
                     df[c] = df[c].astype(str).replace("nan", "")
-        # ======================================================================
         return df, contents.sha
     except GithubException as e:
         if e.status == 404:
             if file_path == ERROR_CSV_PATH:
                 cols = [
-                    "日期","主模块","子模块","考点","题干","选项","正确答案","你的答案",
+                    "日期","username","主模块","子模块","考点","题干","选项","正确答案","你的答案",
                     "错因","解析","review_stage","last_review_date","next_review_date"
                 ]
                 df = pd.DataFrame(columns=cols)
@@ -149,6 +127,11 @@ def load_csv_from_github(file_path):
                 init_tags = ["知识点盲区","审题粗心","公式遗忘","踩出题陷阱","时间不够蒙错","不会速算"]
                 df = pd.DataFrame({"标签名称": init_tags})
                 save_csv_to_github(df, TAG_CSV_PATH, None)
+            elif file_path == USER_CSV_PATH:
+                cols = ["username","password","is_admin"]
+                init_user = [{"username":"admin","password":"admin123","is_admin":True}]
+                df = pd.DataFrame(init_user)
+                save_csv_to_github(df, USER_CSV_PATH, None)
             else:
                 df = pd.DataFrame(columns=get_header())
             return df, None
@@ -171,13 +154,8 @@ def get_tag_list():
     df_tag, _ = load_csv_from_github(TAG_CSV_PATH)
     return df_tag["标签名称"].tolist()
 
-def calc_rate(right, total):
-    if total == 0:
-        return 0.0
-    return round(right / total * 100, 2)
-
 def get_header():
-    header = ["日期", "试卷名称", "卷子类型", "用时(分钟)", "备注"]
+    header = ["日期", "username", "试卷名称", "卷子类型", "用时(分钟)", "备注"]
     for sec in sections_info:
         if sec["sub"]:
             for sub in sec["sub"]:
@@ -187,6 +165,11 @@ def get_header():
             header += [f"{sec['name']}_对", f"{sec['name']}_总", f"{sec['name']}_正确率"]
     header += ["整套合计对", "整套合计总题", "整套正确率"]
     return header
+
+def calc_rate(right, total):
+    if total == 0:
+        return 0.0
+    return round(right / total * 100, 2)
 
 def clean_nan(s):
     if pd.isna(s) or str(s).strip().lower() == "nan":
@@ -205,7 +188,6 @@ def build_info_line(main_mod, sub_mod, point, err_reason):
         parts.append(f"<b>错因</b>：{err_reason}")
     return "｜".join(parts)
 
-# PDF自测版（无答案）
 def generate_pdf_test(df_export):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4,
@@ -220,7 +202,6 @@ def generate_pdf_test(df_export):
     export_date = datetime.now().strftime("导出日期：%Y-%m-%d %H:%M")
     story.append(Paragraph(export_date, small_style))
     story.append(Spacer(1, 10*mm))
-
     for idx, (_, row) in enumerate(df_export.iterrows(), start=1):
         main_mod = clean_nan(row['主模块'])
         sub_mod = clean_nan(row['子模块'])
@@ -228,30 +209,24 @@ def generate_pdf_test(df_export):
         err_reason = clean_nan(row['错因'])
         q_text = clean_nan(row['题干'])
         opt_text = clean_nan(row['选项'])
-
         info_line = build_info_line(main_mod, sub_mod, point, err_reason)
         if info_line:
             story.append(Paragraph(info_line, normal_style))
             story.append(Spacer(1, 4*mm))
-
         content = f"<b>【第{idx}题】</b><br/>{q_text}"
         story.append(Paragraph(content, normal_style))
         story.append(Spacer(1, 4*mm))
-
         opt_text_br = opt_text
         opt_text_br = opt_text_br.replace("A．", "<br/>A．")
         opt_text_br = opt_text_br.replace("B．", "<br/>B．")
         opt_text_br = opt_text_br.replace("C．", "<br/>C．")
         opt_text_br = opt_text_br.replace("D．", "<br/>D．")
         story.append(Paragraph(opt_text_br, normal_style))
-
         story.append(Spacer(1, 10*mm))
-
     doc.build(story)
     buffer.seek(0)
     return buffer
 
-# PDF解析版（带答案、解析，解析缩进）
 def generate_pdf_answer(df_export):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4,
@@ -267,7 +242,6 @@ def generate_pdf_answer(df_export):
     export_date = datetime.now().strftime("导出日期：%Y-%m-%d %H:%M")
     story.append(Paragraph(export_date, small_style))
     story.append(Spacer(1, 10*mm))
-
     for idx, (_, row) in enumerate(df_export.iterrows(), start=1):
         main_mod = clean_nan(row['主模块'])
         sub_mod = clean_nan(row['子模块'])
@@ -278,23 +252,19 @@ def generate_pdf_answer(df_export):
         ans_r = clean_nan(row['正确答案'])
         ans_m = clean_nan(row['你的答案'])
         note = clean_nan(row['解析'])
-
         info_line = build_info_line(main_mod, sub_mod, point, err_reason)
         if info_line:
             story.append(Paragraph(info_line, normal_style))
             story.append(Spacer(1, 4*mm))
-
         content = f"<b>【第{idx}题】</b><br/>{q_text}"
         story.append(Paragraph(content, normal_style))
         story.append(Spacer(1, 4*mm))
-
         opt_text_br = opt_text
         opt_text_br = opt_text_br.replace("A．", "<br/>A．")
         opt_text_br = opt_text_br.replace("B．", "<br/>B．")
         opt_text_br = opt_text_br.replace("C．", "<br/>C．")
         opt_text_br = opt_text_br.replace("D．", "<br/>D．")
         story.append(Paragraph(opt_text_br, normal_style))
-
         ans_parts = []
         if ans_r:
             ans_parts.append(f"✅正确答案：{ans_r}")
@@ -306,46 +276,83 @@ def generate_pdf_answer(df_export):
             story.append(Spacer(1,3*mm))
         if note:
             story.append(Paragraph(f"<b>解析</b>：{note}", indent_style))
-
         story.append(Spacer(1, 10*mm))
-
     doc.build(story)
     buffer.seek(0)
     return buffer
 
+# ===================== 登录模块 =====================
+if "user_info" not in st.session_state:
+    st.session_state.user_info = None
 
+if st.session_state.user_info is None:
+    st.title("🔐 多用户登录")
+    tab_login, tab_reg = st.tabs(["登录", "注册新用户"])
+    df_user, user_sha = load_csv_from_github(USER_CSV_PATH)
+    with tab_login:
+        u_name = st.text_input("用户名")
+        u_pwd = st.text_input("密码", type="password")
+        if st.button("登录"):
+            match = df_user[(df_user["username"] == u_name) & (df_user["password"] == u_pwd)]
+            if len(match) > 0:
+                st.session_state.user_info = {
+                    "username": u_name,
+                    "is_admin": bool(match.iloc[0]["is_admin"])
+                }
+                st.rerun()
+            else:
+                st.error("用户名或密码错误")
+    with tab_reg:
+        new_u = st.text_input("新用户名")
+        new_p = st.text_input("设置密码", type="password")
+        if st.button("注册（普通用户）"):
+            if new_u.strip() in df_user["username"].tolist():
+                st.warning("用户名已存在")
+            elif new_u.strip() and new_p.strip():
+                new_row = {"username": new_u.strip(), "password": new_p.strip(), "is_admin": False}
+                df_user = pd.concat([df_user, pd.DataFrame([new_row])], ignore_index=True)
+                save_csv_to_github(df_user, USER_CSV_PATH, user_sha)
+                st.success("注册成功，可以去登录")
+                st.rerun()
+            else:
+                st.warning("用户名密码不能为空")
+    st.stop()
+
+current_user = st.session_state.user_info["username"]
+is_admin = st.session_state.user_info["is_admin"]
+
+st.set_page_config(page_title="行测刷题记录工具｜多用户版", layout="wide")
+with st.sidebar:
+    st.info(f"👤 当前登录：{current_user} {'【管理员】' if is_admin else ''}")
+    if st.button("退出登录"):
+        st.session_state.user_info = None
+        st.rerun()
+    if "font_choice" not in st.session_state:
+        st.session_state["font_choice"] = "系统默认"
+    with st.expander("🎨 全局字体设置"):
+        selected_font = st.selectbox("选择字体", FONT_LIST, index=FONT_LIST.index(st.session_state["font_choice"]))
+        st.session_state["font_choice"] = selected_font
+        if selected_font != "系统默认":
+            st.markdown(f"""
+            <style>
+            * {{
+                font-family: "{selected_font}", sans-serif;
+            }}
+            </style>
+            """, unsafe_allow_html=True)
+        st.caption("提示：手机端没有该字体时自动回退默认字体")
 
 # 加载数据
 df, file_sha = load_csv_from_github(CSV_PATH)
 df_err, err_sha = load_csv_from_github(ERROR_CSV_PATH)
 
-st.set_page_config(page_title="行测刷题记录工具", layout="wide")
+st.title("📝 行测刷题记录 + 艾宾浩斯错题本【多用户共用版】")
+view_all = st.checkbox("📊 查看全部人汇总数据（管理员可导出所有人，普通用户仅查看汇总统计）", value=False)
 
-# ========== 【新增侧边栏字体设置】 ==========
-if "font_choice" not in st.session_state:
-    st.session_state["font_choice"] = "系统默认"
-with st.sidebar.expander("🎨 全局字体设置"):
-    selected_font = st.selectbox("选择字体", FONT_LIST, index=FONT_LIST.index(st.session_state["font_choice"]))
-    st.session_state["font_choice"] = selected_font
-    if selected_font != "系统默认":
-        st.markdown(f"""
-        <style>
-        * {{
-            font-family: "{selected_font}", sans-serif;
-        }}
-        </style>
-        """, unsafe_allow_html=True)
-    st.caption("提示：手机端没有该字体时自动回退默认字体")
-
-st.title("📝 行测刷题记录 + 艾宾浩斯错题本")
-
-# tab列表：试卷录入, 历史记录, 统计图表, 错题本, 薄弱排名, 复习计划, 导出PDF, 数据管理
 tab_input, tab_history, tab_chart, tab_error, tab_rank, tab_review_plan, tab_export, tab_manage = st.tabs([
     "试卷录入", "历史记录", "统计图表", "错题本", "薄弱项排名", "复习计划", "导出PDF", "数据管理"
 ])
 
-
-# 切换试卷类型回调
 def on_paper_change():
     selected = st.session_state["paper_type_key"]
     temp = paper_templates[selected]
@@ -367,7 +374,7 @@ def on_paper_change():
             st.session_state[k_r] = 0
 
 with tab_input:
-    st.subheader("新增刷题记录")
+    st.subheader("新增刷题记录（自动归属到你）")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         paper_type = st.selectbox("卷子类型", list(paper_templates.keys()), key="paper_type_key", on_change=on_paper_change)
@@ -442,6 +449,7 @@ with tab_input:
     if st.button("保存本条记录"):
         new_row = {
             "日期": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "username": current_user,
             "试卷名称": paper_name,
             "卷子类型": paper_type,
             "用时(分钟)": use_time,
@@ -454,12 +462,16 @@ with tab_input:
             new_row[k] = v
         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
         save_csv_to_github(df, CSV_PATH, file_sha)
-        st.success("✅ 保存成功！数据已经写入GitHub仓库永久保存")
+        st.success("✅ 保存成功！")
         st.rerun()
 
 with tab_history:
     st.subheader("📋 历史刷题记录")
-    st.dataframe(df, use_container_width=True)
+    if view_all or is_admin:
+        show_df_his = df.copy()
+    else:
+        show_df_his = df[df["username"] == current_user].copy()
+    st.dataframe(show_df_his, use_container_width=True)
 
 with tab_chart:
     st.subheader("趋势统计图")
@@ -469,7 +481,8 @@ with tab_chart:
         plot_df = df.copy()
         if filter_paper != "全部":
             plot_df = plot_df[plot_df["卷子类型"] == filter_paper]
-
+        if not view_all:
+            plot_df = plot_df[plot_df["username"] == current_user]
         if len(plot_df) > 0:
             font = FontProperties(fname=FONT_FILE_NAME)
             fig, ax = plt.subplots(figsize=(12,6))
@@ -486,7 +499,6 @@ with tab_chart:
                     col = f"{m}_正确率"
                     ax.plot(plot_df["日期"], plot_df[col].str.replace("%","").astype(float), marker=".", label=m, linewidth=1.2)
             ax.axhline(y=TARGET_SCORE, color="#ff3333", linestyle="--", label=f"目标线 {TARGET_SCORE}%")
-
             ax.set_title(f"{chart_type} {'【'+filter_paper+'】' if filter_paper!='全部' else ''}", fontproperties=font, fontsize=14)
             ax.set_xlabel("时间", fontproperties=font, fontsize=12)
             ax.set_ylabel("正确率 %", fontproperties=font, fontsize=12)
@@ -502,19 +514,17 @@ with tab_chart:
         st.info("暂无刷题记录，请先录入试卷")
 
 with tab_error:
-    st.subheader("❌ 错题本｜动态错因标签管理")
+    st.subheader("❌ 错题本｜仅本人可编辑自己错题")
     err_tab1, err_tab2, err_tab3, err_tab4 = st.tabs(["录入错题", "标签管理", "全部错题检索", "✏️ 修改/删除错题"])
     tag_list = get_tag_list()
-
     with err_tab1:
-        st.markdown("##### 添加错题")
+        st.markdown("##### 添加错题（自动归属你）")
         if "err_main_sel" not in st.session_state:
             st.session_state.err_main_sel = main_module_list[0]
         main_mod = st.selectbox("主模块", main_module_list, key="err_main_sel")
         sub_options = module_sub_map[main_mod]
         if "err_sub_sel" not in st.session_state or st.session_state.err_sub_sel not in sub_options:
             st.session_state.err_sub_sel = sub_options[0]
-
         with st.form("error_form", clear_on_submit=True):
             sub_mod = st.selectbox("细分小模块", sub_options, key="err_sub_sel")
             err_point = st.text_input("考点（补充细化考点）")
@@ -531,6 +541,7 @@ with tab_error:
             next_dt = datetime.now() + timedelta(days=review_interval[0])
             err_row = {
                 "日期": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "username": current_user,
                 "主模块": main_mod,
                 "子模块": sub_mod,
                 "考点": err_point,
@@ -547,7 +558,6 @@ with tab_error:
             df_err = pd.concat([df_err, pd.DataFrame([err_row])], ignore_index=True)
             save_csv_to_github(df_err, ERROR_CSV_PATH, err_sha)
             st.success("✅ 错题保存成功，自动安排复习！")
-
     with err_tab2:
         st.markdown("##### 🏷️ 动态管理错因标签")
         new_tag = st.text_input("输入新增标签名称")
@@ -567,10 +577,11 @@ with tab_error:
             save_csv_to_github(df_tag, TAG_CSV_PATH, None)
             st.warning(f"已删除标签：{del_tag}（历史错题标签不会自动清除）")
             st.rerun()
-
     with err_tab3:
         st.markdown("##### 🔍 全部错题检索")
         df_err_all, _ = load_csv_from_github(ERROR_CSV_PATH)
+        if not view_all and not is_admin:
+            df_err_all = df_err_all[df_err_all["username"] == current_user]
         filter_main = st.multiselect("筛选主模块", main_module_list, default=main_module_list)
         available_sub = []
         for m in filter_main:
@@ -583,10 +594,11 @@ with tab_error:
             & df_err_all["错因"].isin(filter_reason)
         ]
         st.dataframe(show_df, use_container_width=True)
-
     with err_tab4:
-        st.markdown("##### ✏️ 修改 / 删除错题")
+        st.markdown("##### ✏️ 修改 / 删除错题（只能操作自己的）")
         df_edit_all, edit_sha = load_csv_from_github(ERROR_CSV_PATH)
+        if not is_admin:
+            df_edit_all = df_edit_all[df_edit_all["username"] == current_user]
         if len(df_edit_all) == 0:
             st.info("错题本暂无数据")
         else:
@@ -595,12 +607,7 @@ with tab_error:
             main_mod = clean_nan(edit_row["主模块"])
             sub_mod = clean_nan(edit_row["子模块"])
             point = clean_nan(edit_row["考点"])
-            select_parts = [f"【{main_mod}｜{sub_mod}】"]
-            if point:
-                select_parts.append(point)
-            st.markdown("选中：" + " ".join(select_parts))
-
-
+            st.markdown("选中：" + f"【{main_mod}｜{sub_mod}】{point}")
             with st.form("edit_err_form", clear_on_submit=False):
                 edit_main = st.selectbox("主模块", main_module_list, index=main_module_list.index(edit_row["主模块"]))
                 edit_sub_opt = module_sub_map[edit_main]
@@ -614,33 +621,27 @@ with tab_error:
                 reason_idx = tag_list.index(edit_row["错因"]) if edit_row["错因"] in tag_list else 0
                 edit_reason = st.selectbox("错因标签", tag_list, index=reason_idx)
                 edit_note = st.text_area("解析/复盘笔记", value=edit_row["解析"])
-
-                st.markdown("##### 📅 复习计划（艾宾浩斯）")
                 edit_stage = st.number_input("当前复习轮次 review_stage", min_value=0, max_value=len(review_interval), value=int(edit_row["review_stage"]))
                 edit_last = st.text_input("上次复习日期", value=edit_row["last_review_date"])
                 edit_next = st.text_input("下次复习日期", value=edit_row["next_review_date"])
-
                 save_edit_btn = st.form_submit_button("💾 保存修改")
-
             if save_edit_btn:
-                df_edit_all.at[select_idx, "主模块"] = str(edit_main) if edit_main not in [None, ""] else ""
-                df_edit_all.at[select_idx, "子模块"] = str(edit_sub) if edit_sub not in [None, ""] else ""
-                df_edit_all.at[select_idx, "考点"] = str(edit_point) if edit_point not in [None, ""] else ""
-                df_edit_all.at[select_idx, "题干"] = str(edit_q) if edit_q not in [None, ""] else ""
-                df_edit_all.at[select_idx, "选项"] = str(edit_opt) if edit_opt not in [None, ""] else ""
-                df_edit_all.at[select_idx, "正确答案"] = str(edit_ans_r) if edit_ans_r not in [None, ""] else ""
-                df_edit_all.at[select_idx, "你的答案"] = str(edit_ans_m) if edit_ans_m not in [None, ""] else ""
-                df_edit_all.at[select_idx, "错因"] = str(edit_reason) if edit_reason not in [None, ""] else ""
-                df_edit_all.at[select_idx, "解析"] = str(edit_note) if edit_note not in [None, ""] else ""
+                df_edit_all.at[select_idx, "主模块"] = str(edit_main)
+                df_edit_all.at[select_idx, "子模块"] = str(edit_sub)
+                df_edit_all.at[select_idx, "考点"] = str(edit_point)
+                df_edit_all.at[select_idx, "题干"] = str(edit_q)
+                df_edit_all.at[select_idx, "选项"] = str(edit_opt)
+                df_edit_all.at[select_idx, "正确答案"] = str(edit_ans_r)
+                df_edit_all.at[select_idx, "你的答案"] = str(edit_ans_m)
+                df_edit_all.at[select_idx, "错因"] = str(edit_reason)
+                df_edit_all.at[select_idx, "解析"] = str(edit_note)
                 df_edit_all.at[select_idx, "review_stage"] = edit_stage
                 df_edit_all.at[select_idx, "last_review_date"] = edit_last
                 df_edit_all.at[select_idx, "next_review_date"] = edit_next
                 save_csv_to_github(df_edit_all, ERROR_CSV_PATH, edit_sha)
                 st.success("✅ 错题修改已保存！")
                 st.rerun()
-
             st.divider()
-            st.markdown("##### 🗑️ 删除本条错题（不可恢复）")
             confirm_del_err = st.checkbox("确认删除这条错题")
             if confirm_del_err:
                 if st.button("⚠️ 确认删除错题"):
@@ -652,6 +653,8 @@ with tab_error:
 with tab_rank:
     st.subheader("📊 薄弱项排名")
     df_rank, _ = load_csv_from_github(ERROR_CSV_PATH)
+    if not view_all and not is_admin:
+        df_rank = df_rank[df_rank["username"] == current_user]
     font = FontProperties(fname=FONT_FILE_NAME)
     if len(df_rank) == 0:
         st.info("暂无错题记录，先录入错题")
@@ -667,7 +670,6 @@ with tab_rank:
         ax1.set_yticklabels(rank_module["模块名称"], fontproperties=font)
         plt.tight_layout()
         st.pyplot(fig1)
-
         st.markdown("#### 🔹 错因标签频次排行")
         rank_tag = df_rank["错因"].value_counts().reset_index()
         rank_tag.columns = ["错因标签", "出现次数"]
@@ -681,8 +683,9 @@ with tab_rank:
         st.pyplot(fig2)
 
 with tab_review_plan:
-    st.subheader("🎯 自动复习计划（薄弱模块优先）")
+    st.subheader("🎯 自动复习计划（只加载你的错题）")
     df_rev, rev_sha = load_csv_from_github(ERROR_CSV_PATH)
+    df_rev = df_rev[df_rev["username"] == current_user].copy()
     today = datetime.now().date()
     if len(df_rev) == 0:
         st.info("暂无错题，无法生成复习计划")
@@ -690,7 +693,6 @@ with tab_review_plan:
         df_rev["next_review_date_dt"] = pd.to_datetime(df_rev["next_review_date"], errors="coerce").dt.date
         module_count = df_rev["主模块"].value_counts().to_dict()
         df_rev["薄弱权重"] = df_rev["主模块"].map(module_count).fillna(0)
-
         df_today = df_rev[df_rev["next_review_date_dt"] <= today].copy()
         st.markdown(f"### ✅ 今日待复习（共 {len(df_today)} 道）")
         if len(df_today) > 0:
@@ -718,7 +720,6 @@ with tab_review_plan:
                         st.rerun()
         else:
             st.success("🎉 今天没有待复习错题！")
-
         st.markdown("---")
         st.markdown("### 📆 未来7天复习预览")
         df_future = df_rev.copy()
@@ -732,6 +733,8 @@ with tab_review_plan:
 with tab_export:
     st.markdown("##### 📥 筛选导出PDF")
     df_all, _ = load_csv_from_github(ERROR_CSV_PATH)
+    if not view_all and not is_admin:
+        df_all = df_all[df_all["username"] == current_user]
     tag_list = get_tag_list()
     col_btn1, col_btn2 = st.columns(2)
     if "selected_main" not in st.session_state:
@@ -744,12 +747,10 @@ with tab_export:
             st.session_state["selected_main"] = []
     export_main = st.multiselect("选择主模块", main_module_list, default=st.session_state["selected_main"])
     st.session_state["selected_main"] = export_main
-
     export_sub_options = []
     for m in export_main:
         export_sub_options.extend(module_sub_map[m])
     export_sub = st.multiselect("选择细分小模块", export_sub_options, default=export_sub_options)
-
     col_r1, col_r2 = st.columns(2)
     if "selected_reason" not in st.session_state:
         st.session_state["selected_reason"] = tag_list.copy()
@@ -761,7 +762,6 @@ with tab_export:
             st.session_state["selected_reason"] = []
     export_reason = st.multiselect("选择错因", tag_list, default=st.session_state["selected_reason"])
     st.session_state["selected_reason"] = export_reason
-
     export_df = df_all[
         df_all["主模块"].isin(export_main)
         & df_all["子模块"].isin(export_sub)
@@ -779,36 +779,41 @@ with tab_export:
             st.download_button("📄 下载解析版PDF", pdf_ans, "行测错题本_解析版.pdf", "application/pdf")
 
 with tab_manage:
-    st.subheader("📂 刷题记录管理（单条删除，不会删同名全部）")
-    df, file_sha = load_csv_from_github(CSV_PATH)
-    if len(df) == 0:
+    st.subheader("📂 刷题记录管理")
+    df_mg, mg_sha = load_csv_from_github(CSV_PATH)
+    if not is_admin:
+        df_mg = df_mg[df_mg["username"] == current_user]
+    if len(df_mg) == 0:
         st.info("暂无刷题记录")
     else:
-        st.dataframe(df, use_container_width=True)
-        select_row_idx = st.selectbox("选择要删除的单条记录序号", options=list(range(len(df))))
-        selected_row = df.iloc[select_row_idx]
+        st.dataframe(df_mg, use_container_width=True)
+        select_row_idx = st.selectbox("选择要删除的单条记录序号", options=list(range(len(df_mg))))
+        selected_row = df_mg.iloc[select_row_idx]
         st.markdown(f"""
         📌 选中记录信息：
+        - 用户：{selected_row['username']}
         - 日期：{selected_row['日期']}
         - 试卷名称：{selected_row['试卷名称']}
         - 卷子类型：{selected_row['卷子类型']}
         - 整套正确率：{selected_row['整套正确率']}
         """)
-
         col1, col2 = st.columns(2)
         with col1:
             confirm_del_one = st.checkbox("确认删除这一条记录（仅本条）")
             if confirm_del_one:
                 if st.button("⚠️ 删除选中单条记录", type="secondary"):
-                    df_new = df.drop(select_row_idx).reset_index(drop=True)
-                    save_csv_to_github(df_new, CSV_PATH, file_sha)
+                    df_new = df_mg.drop(select_row_idx).reset_index(drop=True)
+                    save_csv_to_github(df_new, CSV_PATH, mg_sha)
                     st.success(f"✅ 单条记录删除成功！")
                     st.rerun()
         with col2:
-            if st.button("⚠️ 清空全部刷题记录", type="primary"):
-                confirm_clear_all = st.checkbox("确认清空【所有刷题记录】，不可恢复！")
-                if confirm_clear_all:
-                    df_empty = pd.DataFrame(columns=get_header())
-                    save_csv_to_github(df_empty, CSV_PATH, file_sha)
-                    st.success("✅ 全部刷题记录已清空！")
-                    st.rerun()
+            if is_admin:
+                if st.button("⚠️ 清空全部刷题记录", type="primary"):
+                    confirm_clear_all = st.checkbox("确认清空【所有刷题记录】，不可恢复！")
+                    if confirm_clear_all:
+                        df_empty = pd.DataFrame(columns=get_header())
+                        save_csv_to_github(df_empty, CSV_PATH, mg_sha)
+                        st.success("✅ 全部刷题记录已清空！")
+                        st.rerun()
+            else:
+                st.info("只有管理员账号可以清空全部记录")
