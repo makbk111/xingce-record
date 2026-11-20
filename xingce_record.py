@@ -430,30 +430,28 @@ with tab_chart:
             plot_df = plot_df[plot_df["卷子类型"] == filter_paper]
 
         if len(plot_df) > 0:
-            # 清洗数据：把%去掉转为数字
-            plot_df["日期"] = pd.to_datetime(plot_df["日期"])
-            draw_df = plot_df.copy()
-            col_list = []
+            fig, ax = plt.subplots(figsize=(12,6))
             if chart_type == "大模块总图":
-                col_list = [
-                    "政治理论_正确率",
-                    "常识判断_正确率",
-                    "言语理解_合计正确率",
-                    "判断推理_合计正确率",
-                    "数量关系_合计正确率",
-                    "资料分析_正确率",
-                    "整套正确率"
-                ]
+                ax.plot(plot_df["日期"], plot_df["政治理论_正确率"].str.replace("%","").astype(float), marker="o", label="政治理论")
+                ax.plot(plot_df["日期"], plot_df["常识判断_正确率"].str.replace("%","").astype(float), marker="o", label="常识判断")
+                ax.plot(plot_df["日期"], plot_df["言语理解_合计正确率"].str.replace("%","").astype(float), marker="o", label="言语理解")
+                ax.plot(plot_df["日期"], plot_df["判断推理_合计正确率"].str.replace("%","").astype(float), marker="o", label="判断推理")
+                ax.plot(plot_df["日期"], plot_df["数量关系_合计正确率"].str.replace("%","").astype(float), marker="o", label="数量关系")
+                ax.plot(plot_df["日期"], plot_df["资料分析_正确率"].str.replace("%","").astype(float), marker="o", label="资料分析")
+                ax.plot(plot_df["日期"], plot_df["整套正确率"].str.replace("%","").astype(float), marker="o", label="整套")
             else:
-                col_list = [f"{m}_正确率" for m in sub_module_list]
-
-            for c in col_list:
-                draw_df[c] = draw_df[c].str.replace("%","").astype(float)
-
-            draw_df = draw_df[["日期"] + col_list].set_index("日期")
-            st.line_chart(draw_df, height=450)
-            st.caption(f"{chart_type} {'【'+filter_paper+'】' if filter_paper!='全部' else ''}，红色虚线目标70%在原生图表里可以自己对照")
-
+                for m in sub_module_list:
+                    col = f"{m}_正确率"
+                    ax.plot(plot_df["日期"], plot_df[col].str.replace("%","").astype(float), marker=".", label=m, linewidth=1.2)
+            ax.axhline(y=TARGET_SCORE, color="#ff3333", linestyle="--", label=f"目标线 {TARGET_SCORE}%")
+            ax.set_title(f"{chart_type} {'【'+filter_paper+'】' if filter_paper!='全部' else ''}")
+            ax.set_xlabel("时间")
+            ax.set_ylabel("正确率 %")
+            plt.xticks(rotation=30, ha="right")
+            ax.legend(fontsize=8)
+            ax.grid(alpha=0.3)
+            plt.tight_layout()
+            st.pyplot(fig)
         else:
             st.warning("筛选后暂无数据")
     else:
