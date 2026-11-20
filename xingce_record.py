@@ -267,7 +267,7 @@ def generate_pdf_answer(df_export):
     title_style = ParagraphStyle(name="TitleStyle", parent=styles["Heading1"], fontSize=16, alignment=1, fontName=FONT_NAME)
     normal_style = ParagraphStyle(name="NormalCn", parent=styles["Normal"], fontSize=11, fontName=FONT_NAME)
     indent_style = ParagraphStyle(name="IndentCn", parent=styles["Normal"], fontSize=11, fontName=FONT_NAME, leftIndent=8*mm)
-    small_style = Paragraph(name="SmallCn", parent=styles["Normal"], fontSize=9, alignment=1, fontName=FONT_NAME)
+    small_style = ParagraphStyle(name="SmallCn", parent=styles["Normal"], fontSize=9, alignment=1, fontName=FONT_NAME)
     story = []
     story.append(Paragraph("行测错题本【解析版】", title_style))
     export_date = datetime.now().strftime("导出日期：%Y-%m-%d %H:%M")
@@ -318,6 +318,7 @@ def generate_pdf_answer(df_export):
     doc.build(story)
     buffer.seek(0)
     return buffer
+
 
 
 # 加载数据
