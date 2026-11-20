@@ -1,5 +1,5 @@
-streamlit
-pandas
-matplotlib
-PyGithub
-reportlab
+streamlit>=1.40.0
+pandas>=2.0
+matplotlib>=3.8
+PyGithub>=2.2.0
+reportlab>=4.0
