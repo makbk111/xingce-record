@@ -37,6 +37,17 @@ GITHUB_BRANCH = st.secrets.get("GITHUB_BRANCH", "main")
 CSV_PATH = st.secrets.get("CSV_PATH", "行测刷题记录.csv")
 ERROR_CSV_PATH = "行测错题本.csv"
 
+# 【新增字体配置】
+FONT_LIST = [
+    "系统默认",
+    "Microsoft YaHei",
+    "SimSun",
+    "SimHei",
+    "KaiTi",
+    "Arial",
+    "Times New Roman"
+]
+
 # 艾宾浩斯复习间隔
 review_interval = [1, 2, 4, 7, 15, 30]
 
@@ -62,7 +73,7 @@ paper_templates = {
     "行测国考卷": {
         "政治理论": 20,
         "常识判断": 15,
-        "言语理解": {"逻辑填空":15, "片段阅读":11, "语句表达":2, "篇章阅读":2},
+        "言语理解": {"逻辑填空":15, "片段阅读":13, "语句表达":2, "篇章阅读":0},
         "判断推理": {"图形推理":10, "定义判断":10, "类比推理":5, "逻辑判断":10},
         "数量关系": {"数字推理":0, "数学运算":10},
         "资料分析": 20
@@ -212,9 +223,26 @@ df, file_sha = load_csv_from_github(CSV_PATH)
 df_err, err_sha = load_csv_from_github(ERROR_CSV_PATH)
 
 st.set_page_config(page_title="行测刷题记录工具", layout="wide")
+
+# ========== 【新增侧边栏字体设置】 ==========
+if "font_choice" not in st.session_state:
+    st.session_state["font_choice"] = "系统默认"
+with st.sidebar.expander("🎨 全局字体设置"):
+    selected_font = st.selectbox("选择字体", FONT_LIST, index=FONT_LIST.index(st.session_state["font_choice"]))
+    st.session_state["font_choice"] = selected_font
+    if selected_font != "系统默认":
+        st.markdown(f"""
+        <style>
+        * {{
+            font-family: "{selected_font}", sans-serif;
+        }}
+        </style>
+        """, unsafe_allow_html=True)
+    st.caption("提示：手机端没有该字体时自动回退默认字体")
+
 st.title("📝 行测刷题记录 + 艾宾浩斯错题本")
 
-# tab列表：删掉了原来的导出MD tab
+# tab列表：录入记录,历史记录,趋势绘图,错题本
 tab_input, tab_history, tab_chart, tab_error = st.tabs([
     "录入记录", "历史记录", "趋势绘图", "错题本"
 ])
@@ -391,7 +419,6 @@ with tab_history:
     md_text = "\n".join(md_lines)
     st.download_button("下载MD文件", md_text, f"刷题汇总【{export_filter}】.md")
 
-
 with tab_chart:
     st.subheader("趋势图")
     if len(df) > 0:
@@ -434,7 +461,8 @@ with tab_chart:
 
 with tab_error:
     st.subheader("❌ 错题本｜艾宾浩斯复习 + PDF导出")
-    err_tab1, err_tab2, err_tab3 = st.tabs(["录入错题", "今日待复习", "筛选导出PDF"])
+    # 【新增：错题修改删除 放到这里，err_tab4】
+    err_tab1, err_tab2, err_tab3, err_tab4 = st.tabs(["录入错题", "今日待复习", "筛选导出PDF", "✏️ 修改/删除错题"])
 
     with err_tab1:
         st.markdown("##### 添加错题")
@@ -583,3 +611,63 @@ with tab_error:
                 st.download_button("📄 下载自测版PDF", pdf_test, "行测错题本_自测版.pdf", "application/pdf")
             with col_b:
                 st.download_button("📄 下载解析版PDF", pdf_ans, "行测错题本_解析版.pdf", "application/pdf")
+
+    # ========== 【新增：错题修改&删除面板】 ==========
+    with err_tab4:
+        st.markdown("##### ✏️ 修改 / 删除错题")
+        df_edit_all, edit_sha = load_csv_from_github(ERROR_CSV_PATH)
+        if len(df_edit_all) == 0:
+            st.info("错题本暂无数据")
+        else:
+            select_idx = st.selectbox("选择错题序号", options=list(range(len(df_edit_all))))
+            edit_row = df_edit_all.iloc[select_idx].copy()
+            st.markdown(f"选中：【{edit_row['主模块']}｜{edit_row['子模块']}】{edit_row['考点']}")
+
+            # 编辑表单
+            with st.form("edit_err_form", clear_on_submit=False):
+                edit_main = st.selectbox("主模块", main_module_list, index=main_module_list.index(edit_row["主模块"]))
+                edit_sub_opt = module_sub_map[edit_main]
+                sub_index = edit_sub_opt.index(edit_row["子模块"]) if edit_row["子模块"] in edit_sub_opt else 0
+                edit_sub = st.selectbox("细分小模块", edit_sub_opt, index=sub_index)
+                edit_point = st.text_input("考点", value=edit_row["考点"])
+                edit_q = st.text_area("题干", value=edit_row["题干"])
+                edit_opt = st.text_area("选项", value=edit_row["选项"])
+                edit_ans_r = st.text_input("正确答案", value=edit_row["正确答案"])
+                edit_ans_m = st.text_input("你的答案", value=edit_row["你的答案"])
+                reason_idx = reason_list.index(edit_row["错因"]) if edit_row["错因"] in reason_list else 0
+                edit_reason = st.selectbox("错因", reason_list, index=reason_idx)
+                edit_note = st.text_area("解析/复盘笔记", value=edit_row["解析"])
+
+                st.markdown("##### 📅 复习计划（艾宾浩斯）")
+                edit_stage = st.number_input("当前复习轮次 review_stage", min_value=0, max_value=len(review_interval), value=int(edit_row["review_stage"]))
+                edit_last = st.text_input("上次复习日期", value=edit_row["last_review_date"])
+                edit_next = st.text_input("下次复习日期", value=edit_row["next_review_date"])
+
+                save_edit_btn = st.form_submit_button("💾 保存修改")
+
+            if save_edit_btn:
+                df_edit_all.at[select_idx, "主模块"] = edit_main
+                df_edit_all.at[select_idx, "子模块"] = edit_sub
+                df_edit_all.at[select_idx, "考点"] = edit_point
+                df_edit_all.at[select_idx, "题干"] = edit_q
+                df_edit_all.at[select_idx, "选项"] = edit_opt
+                df_edit_all.at[select_idx, "正确答案"] = edit_ans_r
+                df_edit_all.at[select_idx, "你的答案"] = edit_ans_m
+                df_edit_all.at[select_idx, "错因"] = edit_reason
+                df_edit_all.at[select_idx, "解析"] = edit_note
+                df_edit_all.at[select_idx, "review_stage"] = edit_stage
+                df_edit_all.at[select_idx, "last_review_date"] = edit_last
+                df_edit_all.at[select_idx, "next_review_date"] = edit_next
+                save_csv_to_github(df_edit_all, ERROR_CSV_PATH, edit_sha)
+                st.success("✅ 错题修改已保存！")
+                st.rerun()
+
+            st.divider()
+            st.markdown("##### 🗑️ 删除本条错题（不可恢复）")
+            confirm_del_err = st.checkbox("确认删除这条错题")
+            if confirm_del_err:
+                if st.button("⚠️ 确认删除错题"):
+                    df_edit_all = df_edit_all.drop(select_idx).reset_index(drop=True)
+                    save_csv_to_github(df_edit_all, ERROR_CSV_PATH, edit_sha)
+                    st.warning("✅ 错题已删除！")
+                    st.rerun()
