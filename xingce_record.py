@@ -360,70 +360,10 @@ with tab_input:
         st.success("✅ 保存成功！数据已经写入GitHub仓库永久保存")
         st.rerun()
 
-with tab_history:
-    st.subheader("历史刷题记录")
-    st.dataframe(df, use_container_width=True)
-    buf = io.BytesIO()
-    df.to_csv(buf, index=False, encoding="utf-8-sig")
-    st.download_button("下载全部CSV备份", buf.getvalue(), "行测刷题记录.csv", "text/csv")
-
-    # ========== 合并进来的导出MD功能 ==========
-    st.divider()
-    st.subheader("导出Markdown复盘表")
-    header_md = [
-        "日期", "试卷名称", "卷子类型", "用时", "备注",
-        "政治理论", "常识判断",
-        "逻辑填空", "片段阅读", "语句表达", "篇章阅读",
-        "图形推理", "定义判断", "类比推理", "逻辑判断",
-        "数字推理", "数学运算",
-        "资料分析",
-        "整套正确率"
-    ]
-    md_lines = []
-    export_filter = st.selectbox("选择导出类型", ["全部记录"] + list(paper_templates.keys()))
-    if export_filter == "全部记录":
-        md_lines.append("# 刷题汇总复盘表【全部记录】\n")
-        exp_df = df
-    else:
-        md_lines.append(f"# 刷题汇总复盘表【筛选：{export_filter}】\n")
-        exp_df = df[df["卷子类型"] == export_filter]
-    md_lines.append("| " + " | ".join(header_md) + " |")
-    md_lines.append("| " + " | ".join(["---"]*len(header_md)) + " |")
-
-    for _,row in exp_df.iterrows():
-        def safe(v):
-            if pd.isna(v) or str(v).strip() == "":
-                return "-"
-            return str(v)
-        line = [
-            safe(row["日期"]),
-            safe(row["试卷名称"]),
-            safe(row["卷子类型"]),
-            safe(row["用时(分钟)"]),
-            safe(row["备注"]),
-            safe(row["政治理论_正确率"]),
-            safe(row["常识判断_正确率"]),
-            safe(row["逻辑填空_正确率"]),
-            safe(row["片段阅读_正确率"]),
-            safe(row["语句表达_正确率"]),
-            safe(row["篇章阅读_正确率"]),
-            safe(row["图形推理_正确率"]),
-            safe(row["定义判断_正确率"]),
-            safe(row["类比推理_正确率"]),
-            safe(row["逻辑判断_正确率"]),
-            safe(row["数字推理_正确率"]),
-            safe(row["数学运算_正确率"]),
-            safe(row["资料分析_正确率"]),
-            safe(row["整套正确率"])
-        ]
-        md_lines.append("| " + " | ".join(line) + " |")
-    md_text = "\n".join(md_lines)
-    st.download_button("下载MD文件", md_text, f"刷题汇总【{export_filter}】.md")
-
 with tab_chart:
-    st.subheader("趋势图")
+    st.subheader("趋势统计图")
     if len(df) > 0:
-        filter_paper = st.selectbox("筛选卷子类型绘图", ["全部"] + list(df["卷子类型"].unique()))
+        filter_paper = st.selectbox("筛选卷子类型", ["全部"] + list(df["卷子类型"].unique()))
         chart_type = st.radio("图表类型", ["大模块总图","细分小题图"])
         plot_df = df.copy()
         if filter_paper != "全部":
@@ -431,14 +371,10 @@ with tab_chart:
 
         if len(plot_df) > 0:
             import matplotlib.pyplot as plt
-            import matplotlib.font_manager as fm
-            from io import BytesIO
-            import requests
+            from matplotlib.font_manager import FontProperties
 
-            # 在线拉取 Noto Sans SC 开源中文字体，云端可用
-            font_url = "https://github.com/notofonts/noto-cn/raw/main/fonts/ttf/NotoSansSC-Regular.ttf"
-            response = requests.get(font_url)
-            font = fm.FontProperties(fname=BytesIO(response.content))
+            # 读取仓库根目录的思源黑体
+            font = FontProperties(fname="NotoSansSC-Regular.ttf")
 
             fig, ax = plt.subplots(figsize=(12,6))
             if chart_type == "大模块总图":
@@ -455,7 +391,7 @@ with tab_chart:
                     ax.plot(plot_df["日期"], plot_df[col].str.replace("%","").astype(float), marker=".", label=m, linewidth=1.2)
             ax.axhline(y=TARGET_SCORE, color="#ff3333", linestyle="--", label=f"目标线 {TARGET_SCORE}%")
 
-            # 所有中文文本指定字体
+            # 全部中文绑定字体
             ax.set_title(f"{chart_type} {'【'+filter_paper+'】' if filter_paper!='全部' else ''}", fontproperties=font, fontsize=14)
             ax.set_xlabel("时间", fontproperties=font, fontsize=12)
             ax.set_ylabel("正确率 %", fontproperties=font, fontsize=12)
@@ -468,7 +404,8 @@ with tab_chart:
         else:
             st.warning("筛选后暂无数据")
     else:
-        st.info("暂无刷题记录，先去录入一条数据")
+        st.info("暂无刷题记录，请先录入试卷")
+
 
 
 
