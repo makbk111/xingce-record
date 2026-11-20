@@ -121,6 +121,13 @@ def load_csv_from_github(file_path):
         contents = repo.get_contents(file_path, ref=GITHUB_BRANCH)
         data = base64.b64decode(contents.content)
         df = pd.read_csv(io.BytesIO(data), encoding="utf-8-sig")
+        # ========= ✅ 错题本表强制文本列转为字符串，解决LossySetitemError =========
+        if file_path == ERROR_CSV_PATH:
+            text_cols = ["考点", "错因", "题干", "选项", "正确答案", "你的答案", "解析", "主模块", "子模块"]
+            for c in text_cols:
+                if c in df.columns:
+                    df[c] = df[c].astype(str).replace("nan", "")
+        # ======================================================================
         return df, contents.sha
     except GithubException as e:
         if e.status == 404:
@@ -385,7 +392,7 @@ with tab_chart:
             plot_df = plot_df[plot_df["卷子类型"] == filter_paper]
 
         if len(plot_df) > 0:
-            font = FontProperties(fname="NotoSansSC-Regular.ttf")
+            font = FontProperties()
             fig, ax = plt.subplots(figsize=(12,6))
             if chart_type == "大模块总图":
                 ax.plot(plot_df["日期"], plot_df["政治理论_正确率"].str.replace("%","").astype(float), marker="o", label="政治理论")
@@ -530,15 +537,15 @@ with tab_error:
                 save_edit_btn = st.form_submit_button("💾 保存修改")
 
             if save_edit_btn:
-                df_edit_all.at[select_idx, "主模块"] = edit_main
-                df_edit_all.at[select_idx, "子模块"] = edit_sub
-                df_edit_all.at[select_idx, "考点"] = edit_point
-                df_edit_all.at[select_idx, "题干"] = edit_q
-                df_edit_all.at[select_idx, "选项"] = edit_opt
-                df_edit_all.at[select_idx, "正确答案"] = edit_ans_r
-                df_edit_all.at[select_idx, "你的答案"] = edit_ans_m
-                df_edit_all.at[select_idx, "错因"] = edit_reason
-                df_edit_all.at[select_idx, "解析"] = edit_note
+                df_edit_all.at[select_idx, "主模块"] = str(edit_main) if edit_main not in [None, ""] else ""
+                df_edit_all.at[select_idx, "子模块"] = str(edit_sub) if edit_sub not in [None, ""] else ""
+                df_edit_all.at[select_idx, "考点"] = str(edit_point) if edit_point not in [None, ""] else ""
+                df_edit_all.at[select_idx, "题干"] = str(edit_q) if edit_q not in [None, ""] else ""
+                df_edit_all.at[select_idx, "选项"] = str(edit_opt) if edit_opt not in [None, ""] else ""
+                df_edit_all.at[select_idx, "正确答案"] = str(edit_ans_r) if edit_ans_r not in [None, ""] else ""
+                df_edit_all.at[select_idx, "你的答案"] = str(edit_ans_m) if edit_ans_m not in [None, ""] else ""
+                df_edit_all.at[select_idx, "错因"] = str(edit_reason) if edit_reason not in [None, ""] else ""
+                df_edit_all.at[select_idx, "解析"] = str(edit_note) if edit_note not in [None, ""] else ""
                 df_edit_all.at[select_idx, "review_stage"] = edit_stage
                 df_edit_all.at[select_idx, "last_review_date"] = edit_last
                 df_edit_all.at[select_idx, "next_review_date"] = edit_next
@@ -559,7 +566,7 @@ with tab_error:
 with tab_rank:
     st.subheader("📊 薄弱项排名")
     df_rank, _ = load_csv_from_github(ERROR_CSV_PATH)
-    font = FontProperties(fname="NotoSansSC-Regular.ttf")
+    font = FontProperties()
     if len(df_rank) == 0:
         st.info("暂无错题记录，先录入错题")
     else:
