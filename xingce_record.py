@@ -181,15 +181,21 @@ def get_header():
     header += ["整套合计对", "整套合计总题", "整套正确率"]
     return header
 
-# PDF生成函数
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+# 注册内置中文字体
+pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
+FONT_NAME = 'STSong-Light'
+
+# PDF生成函数【修复中文黑块】
 def generate_pdf_test(df_export):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4,
                             rightMargin=20*mm, leftMargin=20*mm,
                             topMargin=20*mm, bottomMargin=20*mm)
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(name="TitleStyle", parent=styles["Heading1"], fontSize=16, alignment=1)
-    normal_style = styles["Normal"]
+    title_style = ParagraphStyle(name="TitleStyle", parent=styles["Heading1"], fontSize=16, alignment=1, fontName=FONT_NAME)
+    normal_style = ParagraphStyle(name="NormalCn", parent=styles["Normal"], fontSize=11, fontName=FONT_NAME)
     story = []
     story.append(Paragraph("行测错题本【自测版】", title_style))
     story.append(Spacer(1, 10*mm))
@@ -214,8 +220,8 @@ def generate_pdf_answer(df_export):
                             rightMargin=20*mm, leftMargin=20*mm,
                             topMargin=20*mm, bottomMargin=20*mm)
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(name="TitleStyle", parent=styles["Heading1"], fontSize=16, alignment=1)
-    normal_style = styles["Normal"]
+    title_style = ParagraphStyle(name="TitleStyle", parent=styles["Heading1"], fontSize=16, alignment=1, fontName=FONT_NAME)
+    normal_style = ParagraphStyle(name="NormalCn", parent=styles["Normal"], fontSize=11, fontName=FONT_NAME)
     story = []
     story.append(Paragraph("行测错题本【解析版】", title_style))
     story.append(Spacer(1, 10*mm))
@@ -235,6 +241,7 @@ def generate_pdf_answer(df_export):
     doc.build(story)
     buffer.seek(0)
     return buffer
+
 
 # 加载数据
 df, file_sha = load_csv_from_github(CSV_PATH)
