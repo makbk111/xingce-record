@@ -1,6 +1,5 @@
-streamlit==1.66.0
-pandas
-matplotlib
-pyarrow
-PyGithub
-fonttools
+streamlit>=1.38.0
+pandas>=2.0
+matplotlib>=3.7
+PyGithub>=2.1.1
+reportlab>=4.0
