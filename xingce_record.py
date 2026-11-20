@@ -214,8 +214,9 @@ df_err, err_sha = load_csv_from_github(ERROR_CSV_PATH)
 st.set_page_config(page_title="行测刷题记录工具", layout="wide")
 st.title("📝 行测刷题记录 + 艾宾浩斯错题本")
 
-tab_input, tab_history, tab_chart, tab_export, tab_error = st.tabs([
-    "录入记录", "历史记录", "趋势绘图", "导出MD", "错题本"
+# tab列表：删掉了原来的导出MD tab
+tab_input, tab_history, tab_chart, tab_error = st.tabs([
+    "录入记录", "历史记录", "趋势绘图", "错题本"
 ])
 
 # 切换试卷类型回调
@@ -337,46 +338,8 @@ with tab_history:
     df.to_csv(buf, index=False, encoding="utf-8-sig")
     st.download_button("下载全部CSV备份", buf.getvalue(), "行测刷题记录.csv", "text/csv")
 
-with tab_chart:
-    st.subheader("趋势图")
-    if len(df) > 0:
-        filter_paper = st.selectbox("筛选卷子类型绘图", ["全部"] + list(df["卷子类型"].unique()))
-        chart_type = st.radio("图表类型", ["大模块总图","细分小题图"])
-        plot_df = df.copy()
-        if filter_paper != "全部":
-            plot_df = plot_df[plot_df["卷子类型"] == filter_paper]
-
-        if len(plot_df) > 0:
-            plt.rcParams["font.sans-serif"] = ["SimHei"]
-            plt.rcParams["axes.unicode_minus"] = False
-            fig, ax = plt.subplots(figsize=(12,6))
-            if chart_type == "大模块总图":
-                ax.plot(plot_df["日期"], plot_df["政治理论_正确率"].str.replace("%","").astype(float), marker="o", label="政治理论")
-                ax.plot(plot_df["日期"], plot_df["常识判断_正确率"].str.replace("%","").astype(float), marker="o", label="常识判断")
-                ax.plot(plot_df["日期"], plot_df["言语理解_合计正确率"].str.replace("%","").astype(float), marker="o", label="言语理解")
-                ax.plot(plot_df["日期"], plot_df["判断推理_合计正确率"].str.replace("%","").astype(float), marker="o", label="判断推理")
-                ax.plot(plot_df["日期"], plot_df["数量关系_合计正确率"].str.replace("%","").astype(float), marker="o", label="数量关系")
-                ax.plot(plot_df["日期"], plot_df["资料分析_正确率"].str.replace("%","").astype(float), marker="o", label="资料分析")
-                ax.plot(plot_df["日期"], plot_df["整套正确率"].str.replace("%","").astype(float), marker="o", label="整套")
-            else:
-                for m in sub_module_list:
-                    col = f"{m}_正确率"
-                    ax.plot(plot_df["日期"], plot_df[col].str.replace("%","").astype(float), marker=".", label=m, linewidth=1.2)
-            ax.axhline(y=TARGET_SCORE, color="#ff3333", linestyle="--", label=f"目标线 {TARGET_SCORE}%")
-            ax.set_title(f"{chart_type} {'【'+filter_paper+'】' if filter_paper!='全部' else ''}")
-            ax.set_xlabel("时间")
-            ax.set_ylabel("正确率 %")
-            plt.xticks(rotation=30, ha="right")
-            ax.legend(fontsize=8)
-            ax.grid(alpha=0.3)
-            plt.tight_layout()
-            st.pyplot(fig)
-        else:
-            st.warning("筛选后暂无数据")
-    else:
-        st.info("暂无刷题记录，先去录入一条数据")
-
-with tab_export:
+    # ========== 合并进来的导出MD功能 ==========
+    st.divider()
     st.subheader("导出Markdown复盘表")
     header_md = [
         "日期", "试卷名称", "卷子类型", "用时", "备注",
@@ -426,8 +389,48 @@ with tab_export:
         ]
         md_lines.append("| " + " | ".join(line) + " |")
     md_text = "\n".join(md_lines)
-    st.code(md_text, language="markdown")
     st.download_button("下载MD文件", md_text, f"刷题汇总【{export_filter}】.md")
+
+
+with tab_chart:
+    st.subheader("趋势图")
+    if len(df) > 0:
+        filter_paper = st.selectbox("筛选卷子类型绘图", ["全部"] + list(df["卷子类型"].unique()))
+        chart_type = st.radio("图表类型", ["大模块总图","细分小题图"])
+        plot_df = df.copy()
+        if filter_paper != "全部":
+            plot_df = plot_df[plot_df["卷子类型"] == filter_paper]
+
+        if len(plot_df) > 0:
+            # ========== 修复中文乱码：Streamlit Cloud 支持WenQuanYi Zen Hei ==========
+            plt.rcParams["font.sans-serif"] = ["WenQuanYi Zen Hei"]
+            plt.rcParams["axes.unicode_minus"] = False
+            fig, ax = plt.subplots(figsize=(12,6))
+            if chart_type == "大模块总图":
+                ax.plot(plot_df["日期"], plot_df["政治理论_正确率"].str.replace("%","").astype(float), marker="o", label="政治理论")
+                ax.plot(plot_df["日期"], plot_df["常识判断_正确率"].str.replace("%","").astype(float), marker="o", label="常识判断")
+                ax.plot(plot_df["日期"], plot_df["言语理解_合计正确率"].str.replace("%","").astype(float), marker="o", label="言语理解")
+                ax.plot(plot_df["日期"], plot_df["判断推理_合计正确率"].str.replace("%","").astype(float), marker="o", label="判断推理")
+                ax.plot(plot_df["日期"], plot_df["数量关系_合计正确率"].str.replace("%","").astype(float), marker="o", label="数量关系")
+                ax.plot(plot_df["日期"], plot_df["资料分析_正确率"].str.replace("%","").astype(float), marker="o", label="资料分析")
+                ax.plot(plot_df["日期"], plot_df["整套正确率"].str.replace("%","").astype(float), marker="o", label="整套")
+            else:
+                for m in sub_module_list:
+                    col = f"{m}_正确率"
+                    ax.plot(plot_df["日期"], plot_df[col].str.replace("%","").astype(float), marker=".", label=m, linewidth=1.2)
+            ax.axhline(y=TARGET_SCORE, color="#ff3333", linestyle="--", label=f"目标线 {TARGET_SCORE}%")
+            ax.set_title(f"{chart_type} {'【'+filter_paper+'】' if filter_paper!='全部' else ''}")
+            ax.set_xlabel("时间")
+            ax.set_ylabel("正确率 %")
+            plt.xticks(rotation=30, ha="right")
+            ax.legend(fontsize=8)
+            ax.grid(alpha=0.3)
+            plt.tight_layout()
+            st.pyplot(fig)
+        else:
+            st.warning("筛选后暂无数据")
+    else:
+        st.info("暂无刷题记录，先去录入一条数据")
 
 with tab_error:
     st.subheader("❌ 错题本｜艾宾浩斯复习 + PDF导出")
