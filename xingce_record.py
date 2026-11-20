@@ -146,6 +146,45 @@ def load_csv_from_github(file_path):
         else:
             raise e
 
+# ========== 新增：新增记录专用函数，每次保存前先拉最新文件，降低SHA冲突 ==========
+def append_to_csv(file_path, new_row_dict):
+    repo = get_github_repo()
+    branch = GITHUB_BRANCH
+    try:
+        file_content = repo.get_contents(file_path, ref=branch)
+        df = pd.read_csv(io.BytesIO(base64.b64decode(file_content.content)), encoding="utf-8-sig")
+        if "username" not in df.columns:
+            df["username"] = ""
+    except GithubException as e:
+        if e.status == 404:
+            df = pd.DataFrame()
+            file_content = None
+        else:
+            raise e
+
+    new_df = pd.DataFrame([new_row_dict])
+    df = pd.concat([df, new_df], ignore_index=True)
+
+    buf = io.BytesIO()
+    df.to_csv(buf, index=False, encoding="utf-8-sig")
+    buf.seek(0)
+    content = buf.read()
+    commit_msg = f"append record by {st.session_state.user_info['username']}"
+    if file_content is not None:
+        repo.update_file(
+            path=file_path,
+            message=commit_msg,
+            content=content,
+            sha=file_content.sha,
+            branch=branch
+        )
+    else:
+        repo.create_file(
+            path=file_path,
+            message=commit_msg,
+            content=content,
+            branch=branch
+        )
 
 def save_csv_to_github(df, file_path, old_sha=None):
     repo = get_github_repo()
@@ -469,8 +508,8 @@ with tab_input:
         }
         for k,v in input_data.items():
             new_row[k] = v
-        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-        save_csv_to_github(df, CSV_PATH, file_sha)
+        # 【修改点】改用append_to_csv，保存前自动拉最新
+        append_to_csv(CSV_PATH, new_row)
         st.success("✅ 保存成功！")
         st.rerun()
 
@@ -545,7 +584,6 @@ with tab_error:
             explain = st.text_area("解析/复盘笔记")
             submit_err = st.form_submit_button("💾 保存错题")
         if submit_err:
-            df_err, err_sha = load_csv_from_github(ERROR_CSV_PATH)
             now_str = datetime.now().strftime("%Y-%m-%d")
             next_dt = datetime.now() + timedelta(days=review_interval[0])
             err_row = {
@@ -564,8 +602,8 @@ with tab_error:
                 "last_review_date": now_str,
                 "next_review_date": next_dt.strftime("%Y-%m-%d")
             }
-            df_err = pd.concat([df_err, pd.DataFrame([err_row])], ignore_index=True)
-            save_csv_to_github(df_err, ERROR_CSV_PATH, err_sha)
+            # 【修改点】改用append_to_csv
+            append_to_csv(ERROR_CSV_PATH, err_row)
             st.success("✅ 错题保存成功，自动安排复习！")
     with err_tab2:
         st.markdown("##### 🏷️ 动态管理错因标签")
