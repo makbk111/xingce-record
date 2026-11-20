@@ -183,7 +183,6 @@ def get_header():
 
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-# 注册内置中文字体
 pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
 FONT_NAME = 'STSong-Light'
 
@@ -213,27 +212,29 @@ def generate_pdf_test(df_export):
         q_text = clean_nan(row['题干'])
         opt_text = clean_nan(row['选项'])
 
-        # 题型信息行
         info_line = f"<b>主模块</b>：{main_mod}｜<b>子模块</b>：{sub_mod}｜<b>考点</b>：{point}｜<b>错因</b>：{err_reason}"
         story.append(Paragraph(info_line, normal_style))
-        story.append(Spacer(1, 3*mm)) # 题型信息 和 题号之间空半行
+        story.append(Spacer(1, 3*mm))
 
-        # 题号 + 题干
         content = f"<b>【第{idx}题】</b><br/>{q_text}"
         story.append(Paragraph(content, normal_style))
-        story.append(Spacer(1, 3*mm)) # 题干与选项中间空半行
+        story.append(Spacer(1, 3*mm))
 
-        # 选项分行，把A、B、C、D前面强制换行
-        opt_text_br = opt_text.replace("A.", "<br/>A.").replace("B.", "<br/>B.").replace("C.", "<br/>C.").replace("D.", "<br/>D.")
+        # 匹配中文句号 A． B． C． D．自动换行
+        opt_text_br = opt_text
+        opt_text_br = opt_text_br.replace("A．", "<br/>A．")
+        opt_text_br = opt_text_br.replace("B．", "<br/>B．")
+        opt_text_br = opt_text_br.replace("C．", "<br/>C．")
+        opt_text_br = opt_text_br.replace("D．", "<br/>D．")
         story.append(Paragraph(opt_text_br, normal_style))
 
-        story.append(Spacer(1, 8*mm)) # 题目和下一题的间距
+        story.append(Spacer(1, 8*mm))
 
     doc.build(story)
     buffer.seek(0)
     return buffer
 
-# PDF解析版（带答案、复盘）【这里改好了！row["解析"]】
+# PDF解析版（带答案、解析）
 def generate_pdf_answer(df_export):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4,
@@ -255,23 +256,23 @@ def generate_pdf_answer(df_export):
         opt_text = clean_nan(row['选项'])
         ans_r = clean_nan(row['正确答案'])
         ans_m = clean_nan(row['你的答案'])
-        note = clean_nan(row['解析']) # ✅ 修正：原来写的复盘笔记，现在改成解析
+        note = clean_nan(row['解析'])
 
-        # 题型信息行
         info_line = f"<b>主模块</b>：{main_mod}｜<b>子模块</b>：{sub_mod}｜<b>考点</b>：{point}｜<b>错因</b>：{err_reason}"
         story.append(Paragraph(info_line, normal_style))
         story.append(Spacer(1, 3*mm))
 
-        # 题号+题干
         content = f"<b>【第{idx}题】</b><br/>{q_text}"
         story.append(Paragraph(content, normal_style))
         story.append(Spacer(1, 3*mm))
 
-        # 选项分行
-        opt_text_br = opt_text.replace("A.", "<br/>A.").replace("B.", "<br/>B.").replace("C.", "<br/>C.").replace("D.", "<br/>D.")
+        opt_text_br = opt_text
+        opt_text_br = opt_text_br.replace("A．", "<br/>A．")
+        opt_text_br = opt_text_br.replace("B．", "<br/>B．")
+        opt_text_br = opt_text_br.replace("C．", "<br/>C．")
+        opt_text_br = opt_text_br.replace("D．", "<br/>D．")
         story.append(Paragraph(opt_text_br, normal_style))
 
-        # 答案和解析
         ans_line = f"<br/>✅正确答案：{ans_r} ｜ ❌你的答案：{ans_m}<br/><b>解析</b>：{note}"
         story.append(Paragraph(ans_line, normal_style))
 
@@ -280,6 +281,7 @@ def generate_pdf_answer(df_export):
     doc.build(story)
     buffer.seek(0)
     return buffer
+
 
 
 # 加载数据
