@@ -186,8 +186,10 @@ from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.units import mm
 import io
 import pandas as pd
+from datetime import datetime
 
 pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
 FONT_NAME = 'STSong-Light'
@@ -218,8 +220,11 @@ def generate_pdf_test(df_export):
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(name="TitleStyle", parent=styles["Heading1"], fontSize=16, alignment=1, fontName=FONT_NAME)
     normal_style = ParagraphStyle(name="NormalCn", parent=styles["Normal"], fontSize=11, fontName=FONT_NAME)
+    small_style = ParagraphStyle(name="SmallCn", parent=styles["Normal"], fontSize=9, alignment=1, fontName=FONT_NAME)
     story = []
     story.append(Paragraph("行测错题本【自测版】", title_style))
+    export_date = datetime.now().strftime("导出日期：%Y-%m-%d %H:%M")
+    story.append(Paragraph(export_date, small_style))
     story.append(Spacer(1, 10*mm))
 
     for idx, (_, row) in enumerate(df_export.iterrows(), start=1):
@@ -233,11 +238,11 @@ def generate_pdf_test(df_export):
         info_line = build_info_line(main_mod, sub_mod, point, err_reason)
         if info_line:
             story.append(Paragraph(info_line, normal_style))
-            story.append(Spacer(1, 3*mm))
+            story.append(Spacer(1, 4*mm))
 
         content = f"<b>【第{idx}题】</b><br/>{q_text}"
         story.append(Paragraph(content, normal_style))
-        story.append(Spacer(1, 3*mm))
+        story.append(Spacer(1, 4*mm))
 
         opt_text_br = opt_text
         opt_text_br = opt_text_br.replace("A．", "<br/>A．")
@@ -246,13 +251,13 @@ def generate_pdf_test(df_export):
         opt_text_br = opt_text_br.replace("D．", "<br/>D．")
         story.append(Paragraph(opt_text_br, normal_style))
 
-        story.append(Spacer(1, 8*mm))
+        story.append(Spacer(1, 10*mm))
 
     doc.build(story)
     buffer.seek(0)
     return buffer
 
-# PDF解析版（带答案、解析）
+# PDF解析版（带答案、解析，解析缩进）
 def generate_pdf_answer(df_export):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4,
@@ -261,8 +266,12 @@ def generate_pdf_answer(df_export):
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(name="TitleStyle", parent=styles["Heading1"], fontSize=16, alignment=1, fontName=FONT_NAME)
     normal_style = ParagraphStyle(name="NormalCn", parent=styles["Normal"], fontSize=11, fontName=FONT_NAME)
+    indent_style = ParagraphStyle(name="IndentCn", parent=styles["Normal"], fontSize=11, fontName=FONT_NAME, leftIndent=8*mm)
+    small_style = Paragraph(name="SmallCn", parent=styles["Normal"], fontSize=9, alignment=1, fontName=FONT_NAME)
     story = []
     story.append(Paragraph("行测错题本【解析版】", title_style))
+    export_date = datetime.now().strftime("导出日期：%Y-%m-%d %H:%M")
+    story.append(Paragraph(export_date, small_style))
     story.append(Spacer(1, 10*mm))
 
     for idx, (_, row) in enumerate(df_export.iterrows(), start=1):
@@ -279,11 +288,11 @@ def generate_pdf_answer(df_export):
         info_line = build_info_line(main_mod, sub_mod, point, err_reason)
         if info_line:
             story.append(Paragraph(info_line, normal_style))
-            story.append(Spacer(1, 3*mm))
+            story.append(Spacer(1, 4*mm))
 
         content = f"<b>【第{idx}题】</b><br/>{q_text}"
         story.append(Paragraph(content, normal_style))
-        story.append(Spacer(1, 3*mm))
+        story.append(Spacer(1, 4*mm))
 
         opt_text_br = opt_text
         opt_text_br = opt_text_br.replace("A．", "<br/>A．")
@@ -297,12 +306,14 @@ def generate_pdf_answer(df_export):
             ans_parts.append(f"✅正确答案：{ans_r}")
         if ans_m:
             ans_parts.append(f"❌你的答案：{ans_m}")
+        if ans_parts:
+            ans_line = "｜".join(ans_parts)
+            story.append(Paragraph(ans_line, normal_style))
+            story.append(Spacer(1,3*mm))
         if note:
-            ans_parts.append(f"<b>解析</b>：{note}")
-        ans_line = "<br/>" + "｜".join(ans_parts)
-        story.append(Paragraph(ans_line, normal_style))
+            story.append(Paragraph(f"<b>解析</b>：{note}", indent_style))
 
-        story.append(Spacer(1, 8*mm))
+        story.append(Spacer(1, 10*mm))
 
     doc.build(story)
     buffer.seek(0)
