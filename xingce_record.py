@@ -675,26 +675,38 @@ with tab_error:
 
 # ============ 新增：数据管理 Tab ============
 with tab_manage:
-    st.subheader("📂 刷题记录管理")
+    st.subheader("📂 刷题记录管理（单条删除，不会删同名全部）")
     df, file_sha = load_csv_from_github(CSV_PATH)
     if len(df) == 0:
         st.info("暂无刷题记录")
     else:
         st.dataframe(df, use_container_width=True)
-        paper_list = df["试卷名称"].unique().tolist()
-        del_paper = st.selectbox("选择要删除的试卷", paper_list)
+        # 选择单条记录，用序号定位
+        select_row_idx = st.selectbox("选择要删除的单条记录序号", options=list(range(len(df))))
+        selected_row = df.iloc[select_row_idx]
+        st.markdown(f"""
+        📌 选中记录信息：
+        - 日期：{selected_row['日期']}
+        - 试卷名称：{selected_row['试卷名称']}
+        - 卷子类型：{selected_row['卷子类型']}
+        - 整套正确率：{selected_row['整套正确率']}
+        """)
+
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("删除该试卷全部记录", type="secondary"):
-                df_new = df[df["试卷名称"] != del_paper]
-                save_csv_to_github(df_new, CSV_PATH, file_sha)
-                st.success(f"✅ 已删除【{del_paper}】所有记录！刷新页面生效")
-                st.rerun()
+            confirm_del_one = st.checkbox("确认删除这一条记录（仅本条）")
+            if confirm_del_one:
+                if st.button("⚠️ 删除选中单条记录", type="secondary"):
+                    df_new = df.drop(select_row_idx).reset_index(drop=True)
+                    save_csv_to_github(df_new, CSV_PATH, file_sha)
+                    st.success(f"✅ 单条记录删除成功！")
+                    st.rerun()
         with col2:
-            if st.button("⚠️ 清空全部记录", type="primary"):
-                confirm = st.checkbox("确认清空所有刷题数据，操作不可恢复！")
-                if confirm:
+            if st.button("⚠️ 清空全部刷题记录", type="primary"):
+                confirm_clear_all = st.checkbox("确认清空【所有刷题记录】，不可恢复！")
+                if confirm_clear_all:
                     df_empty = pd.DataFrame(columns=get_header())
                     save_csv_to_github(df_empty, CSV_PATH, file_sha)
-                    st.success("✅ 全部数据已清空！")
+                    st.success("✅ 全部刷题记录已清空！")
                     st.rerun()
+
