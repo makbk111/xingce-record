@@ -108,6 +108,11 @@ def load_csv_from_github(file_path):
         contents = repo.get_contents(file_path, ref=GITHUB_BRANCH)
         data = base64.b64decode(contents.content)
         df = pd.read_csv(io.BytesIO(data), encoding="utf-8-sig")
+
+        # 核心修复：自动补全username列，兼容老数据
+        if "username" not in df.columns:
+            df["username"] = ""
+
         if file_path == ERROR_CSV_PATH:
             text_cols = ["考点", "错因", "题干", "选项", "正确答案", "你的答案", "解析", "主模块", "子模块", "username"]
             for c in text_cols:
@@ -134,9 +139,13 @@ def load_csv_from_github(file_path):
                 save_csv_to_github(df, USER_CSV_PATH, None)
             else:
                 df = pd.DataFrame(columns=get_header())
+                # 新建空表也要带上username
+                if "username" not in df.columns:
+                    df["username"] = ""
             return df, None
         else:
             raise e
+
 
 def save_csv_to_github(df, file_path, old_sha=None):
     repo = get_github_repo()
