@@ -233,7 +233,7 @@ def generate_pdf_test(df_export):
     buffer.seek(0)
     return buffer
 
-# PDF解析版（带答案、复盘）
+# PDF解析版（带答案、复盘）【这里改好了！row["解析"]】
 def generate_pdf_answer(df_export):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4,
@@ -255,7 +255,7 @@ def generate_pdf_answer(df_export):
         opt_text = clean_nan(row['选项'])
         ans_r = clean_nan(row['正确答案'])
         ans_m = clean_nan(row['你的答案'])
-        note = clean_nan(row['复盘笔记'])
+        note = clean_nan(row['解析']) # ✅ 修正：原来写的复盘笔记，现在改成解析
 
         # 题型信息行
         info_line = f"<b>主模块</b>：{main_mod}｜<b>子模块</b>：{sub_mod}｜<b>考点</b>：{point}｜<b>错因</b>：{err_reason}"
@@ -271,8 +271,8 @@ def generate_pdf_answer(df_export):
         opt_text_br = opt_text.replace("A.", "<br/>A.").replace("B.", "<br/>B.").replace("C.", "<br/>C.").replace("D.", "<br/>D.")
         story.append(Paragraph(opt_text_br, normal_style))
 
-        # 答案和复盘
-        ans_line = f"<br/>✅正确答案：{ans_r} ｜ ❌你的答案：{ans_m}<br/><b>复盘笔记</b>：{note}"
+        # 答案和解析
+        ans_line = f"<br/>✅正确答案：{ans_r} ｜ ❌你的答案：{ans_m}<br/><b>解析</b>：{note}"
         story.append(Paragraph(ans_line, normal_style))
 
         story.append(Spacer(1, 8*mm))
