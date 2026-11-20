@@ -31,6 +31,13 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+# ===================== 字体注册（思源黑体，放在仓库根目录） =====================
+FONT_FILE_NAME = "NotoSansSC-Regular.ttf"
+pdfmetrics.registerFont(TTFont("NotoSansSC", FONT_FILE_NAME))
+FONT_NAME = "NotoSansSC"
 
 # ===================== 配置区 =====================
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
@@ -180,19 +187,6 @@ def get_header():
             header += [f"{sec['name']}_对", f"{sec['name']}_总", f"{sec['name']}_正确率"]
     header += ["整套合计对", "整套合计总题", "整套正确率"]
     return header
-
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.units import mm
-import io
-import pandas as pd
-from datetime import datetime
-
-pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
-FONT_NAME = 'STSong-Light'
 
 def clean_nan(s):
     if pd.isna(s) or str(s).strip().lower() == "nan":
@@ -477,7 +471,7 @@ with tab_chart:
             plot_df = plot_df[plot_df["卷子类型"] == filter_paper]
 
         if len(plot_df) > 0:
-            font = FontProperties()
+            font = FontProperties(fname=FONT_FILE_NAME)
             fig, ax = plt.subplots(figsize=(12,6))
             if chart_type == "大模块总图":
                 ax.plot(plot_df["日期"], plot_df["政治理论_正确率"].str.replace("%","").astype(float), marker="o", label="政治理论")
@@ -658,7 +652,7 @@ with tab_error:
 with tab_rank:
     st.subheader("📊 薄弱项排名")
     df_rank, _ = load_csv_from_github(ERROR_CSV_PATH)
-    font = FontProperties()
+    font = FontProperties(fname=FONT_FILE_NAME)
     if len(df_rank) == 0:
         st.info("暂无错题记录，先录入错题")
     else:
