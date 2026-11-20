@@ -430,6 +430,16 @@ with tab_chart:
             plot_df = plot_df[plot_df["卷子类型"] == filter_paper]
 
         if len(plot_df) > 0:
+            import matplotlib.pyplot as plt
+            import matplotlib.font_manager as fm
+            from io import BytesIO
+            import requests
+
+            # 在线拉取 Noto Sans SC 开源中文字体，云端可用
+            font_url = "https://github.com/notofonts/noto-cn/raw/main/fonts/ttf/NotoSansSC-Regular.ttf"
+            response = requests.get(font_url)
+            font = fm.FontProperties(fname=BytesIO(response.content))
+
             fig, ax = plt.subplots(figsize=(12,6))
             if chart_type == "大模块总图":
                 ax.plot(plot_df["日期"], plot_df["政治理论_正确率"].str.replace("%","").astype(float), marker="o", label="政治理论")
@@ -444,11 +454,14 @@ with tab_chart:
                     col = f"{m}_正确率"
                     ax.plot(plot_df["日期"], plot_df[col].str.replace("%","").astype(float), marker=".", label=m, linewidth=1.2)
             ax.axhline(y=TARGET_SCORE, color="#ff3333", linestyle="--", label=f"目标线 {TARGET_SCORE}%")
-            ax.set_title(f"{chart_type} {'【'+filter_paper+'】' if filter_paper!='全部' else ''}")
-            ax.set_xlabel("时间")
-            ax.set_ylabel("正确率 %")
-            plt.xticks(rotation=30, ha="right")
-            ax.legend(fontsize=8)
+
+            # 所有中文文本指定字体
+            ax.set_title(f"{chart_type} {'【'+filter_paper+'】' if filter_paper!='全部' else ''}", fontproperties=font, fontsize=14)
+            ax.set_xlabel("时间", fontproperties=font, fontsize=12)
+            ax.set_ylabel("正确率 %", fontproperties=font, fontsize=12)
+            plt.xticks(rotation=30, ha="right", fontproperties=font)
+            plt.yticks(fontproperties=font)
+            ax.legend(prop=font, fontsize=8)
             ax.grid(alpha=0.3)
             plt.tight_layout()
             st.pyplot(fig)
@@ -456,6 +469,7 @@ with tab_chart:
             st.warning("筛选后暂无数据")
     else:
         st.info("暂无刷题记录，先去录入一条数据")
+
 
 
 with tab_error:
